@@ -188,6 +188,25 @@ class TestSuggestionsAPI:
                 assert data["discarded_count"] == 1
                 mock_save.assert_called_once()
 
+    def test_api_refresh_button(self):
+        settings = Settings(check_firefox_history=False)
+        app = create_app(settings)
+
+        with patch(
+            "blog_agent.web.fetch_all_feeds",
+            return_value=_make_test_posts(),
+        ):
+            with app.test_client() as client:
+                resp = client.post("/api/refresh")
+                assert resp.status_code == 200
+                data = resp.get_json()
+                assert data["status"] == "ok"
+
+                # After refresh, posts should be cached
+                resp2 = client.get("/api/posts")
+                data2 = resp2.get_json()
+                assert len(data2["posts"]) == 2
+
     def test_api_like_no_body(self):
         settings = Settings(check_firefox_history=False)
         app = create_app(settings)

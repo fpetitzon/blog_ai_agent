@@ -351,6 +351,7 @@
         <button class="tab-btn active" data-tab="posts">Posts</button>
         <button class="tab-btn" data-tab="suggestions">Discover</button>
       </div>
+      <button class="btn" id="refreshBtn" title="Refresh feeds">Refresh</button>
       <div class="stats" id="stats"></div>
     </div>
   </header>
@@ -599,6 +600,20 @@
       await fetchPosts(newDays);
       loadOlderBtn.disabled = false;
       loadOlderBtn.textContent = 'Load older posts';
+    });
+
+    // Refresh button
+    const refreshBtn = document.getElementById('refreshBtn');
+    refreshBtn.addEventListener('click', async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = 'Refreshing...';
+      try {
+        await fetch('/api/refresh', { method: 'POST' });
+        await fetchPosts();
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = 'Refresh';
+      }
     });
 
     searchInput.addEventListener('input', renderPosts);

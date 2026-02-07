@@ -2,7 +2,24 @@
 
 from datetime import datetime, timedelta, timezone
 
-from blog_agent.models import BlogPost, FeedSource, FeedType
+from blog_agent.models import BlogPost, FeedSource, FeedType, normalize_url
+
+
+class TestNormalizeUrl:
+    def test_basic_url(self):
+        assert normalize_url("https://example.com/post") == "https://example.com/post"
+
+    def test_strips_trailing_slash(self):
+        assert normalize_url("https://example.com/post/") == "https://example.com/post"
+
+    def test_strips_query_and_fragment(self):
+        assert (
+            normalize_url("https://example.com/post?ref=twitter#comments")
+            == "https://example.com/post"
+        )
+
+    def test_lowercases(self):
+        assert normalize_url("HTTPS://EXAMPLE.COM/Post") == "https://example.com/post"
 
 
 class TestFeedSource:

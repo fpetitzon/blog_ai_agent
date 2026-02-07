@@ -10,9 +10,9 @@ import json
 import logging
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
-from blog_agent.models import FeedSource
+from blog_agent.models import FeedSource, normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -27,30 +27,26 @@ class Preferences(BaseModel):
     discarded_urls: list[str] = Field(default_factory=list)
 
     def is_discarded(self, url: str) -> bool:
-        normalized = url.rstrip("/").lower()
-        return any(u.rstrip("/").lower() == normalized for u in self.discarded_urls)
+        key = normalize_url(url)
+        return any(normalize_url(u) == key for u in self.discarded_urls)
 
     def is_liked(self, url: str) -> bool:
-        normalized = url.rstrip("/").lower()
-        return any(f.url.rstrip("/").lower() == normalized for f in self.liked)
+        key = normalize_url(url)
+        return any(normalize_url(f.url) == key for f in self.liked)
 
     def like(self, source: FeedSource) -> None:
-        """Add a source to liked list (and remove from discarded if present)."""
-        normalized = source.url.rstrip("/").lower()
-        # Remove from discarded
+        """Add a source to liked list (remove from discarded)."""
+        key = normalize_url(source.url)
         self.discarded_urls = [
-            u for u in self.discarded_urls if u.rstrip("/").lower() != normalized
+            u for u in self.discarded_urls if normalize_url(u) != key
         ]
-        # Don't duplicate
         if not self.is_liked(source.url):
             self.liked.append(source)
 
     def discard(self, url: str) -> None:
-        """Mark a blog URL as discarded (and remove from liked if present)."""
-        normalized = url.rstrip("/").lower()
-        # Remove from liked
-        self.liked = [f for f in self.liked if f.url.rstrip("/").lower() != normalized]
-        # Don't duplicate
+        """Mark a blog URL as discarded (remove from liked)."""
+        key = normalize_url(url)
+        self.liked = [f for f in self.liked if normalize_url(f.url) != key]
         if not self.is_discarded(url):
             self.discarded_urls.append(url)
 
@@ -64,14 +60,14 @@ class Preferences(BaseModel):
 
 
 def load_preferences(path: Path | None = None) -> Preferences:
-    """Load preferences from disk, returning empty prefs if file missing."""
+    """Load preferences from disk, returning empty prefs if missing."""
     path = path or DEFAULT_PREFS_PATH
     if not path.exists():
         return Preferences()
     try:
         data = json.loads(path.read_text())
         return Preferences(**data)
-    except (json.JSONDecodeError, Exception) as exc:
+    except (json.JSONDecodeError, ValidationError, KeyError) as exc:
         logger.warning("Could not load preferences from %s: %s", path, exc)
         return Preferences()
 
@@ -85,7 +81,6 @@ def save_preferences(prefs: Preferences, path: Path | None = None) -> None:
 
 
 # --- Suggested blogs outside the user's comfort zone ---
-# These span philosophy, hard science, art, tech, geopolitics, etc.
 # Intentionally diverse to push beyond rationality/economics niche.
 
 SUGGESTED_FEEDS: list[FeedSource] = [
@@ -213,18 +208,16 @@ def get_suggestions(
     candidates: list[tuple[FeedSource, int]] = []
 
     for feed in SUGGESTED_FEEDS:
-        normalized = feed.url.rstrip("/").lower()
-        if normalized in existing_urls:
+        key = normalize_url(feed.url)
+        if key in existing_urls:
             continue
         if prefs.is_discarded(feed.url):
             continue
         if prefs.is_liked(feed.url):
             continue
 
-        # Score by tag overlap with liked blogs
         score = sum(liked_tags.get(tag, 0) for tag in feed.tags)
         candidates.append((feed, score))
 
-    # Sort by score descending, then alphabetically
     candidates.sort(key=lambda x: (-x[1], x[0].name))
     return [feed for feed, _ in candidates]
