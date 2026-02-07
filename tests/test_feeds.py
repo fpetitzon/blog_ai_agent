@@ -6,6 +6,7 @@ from unittest.mock import patch
 import httpx
 
 from blog_agent.feeds import (
+    _extract_comments,
     _extract_likes,
     _extract_summary,
     _parse_date,
@@ -240,3 +241,155 @@ class TestFetchAllFeeds:
         assert len(posts) == 2
         # The one from B (1h ago) should come before A (2h ago)
         assert posts[0].published > posts[1].published
+
+
+class TestExtractComments:
+    def test_slash_comments(self):
+        entry = {"slash_comments": "100"}
+        assert _extract_comments(entry) == 100
+
+    def test_thr_total(self):
+        entry = {"thr_total": "25"}
+        assert _extract_comments(entry) == 25
+
+    def test_none_when_missing(self):
+        assert _extract_comments({}) is None
+
+    def test_invalid_value(self):
+        assert _extract_comments({"slash_comments": "abc"}) is None
+
+
+# RSS with slash:comments for testing min_comments filtering
+SAMPLE_RSS_WITH_COMMENTS = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:slash="http://purl.org/rss/1.0/modules/slash/">
+  <channel>
+    <title>Prolific Blog</title>
+    <link>https://example.com</link>
+    <item>
+      <title>Popular Post</title>
+      <link>https://example.com/popular</link>
+      <author>Tyler</author>
+      <pubDate>{date}</pubDate>
+      <slash:comments>120</slash:comments>
+    </item>
+    <item>
+      <title>Medium Post</title>
+      <link>https://example.com/medium</link>
+      <author>Tyler</author>
+      <pubDate>{date}</pubDate>
+      <slash:comments>30</slash:comments>
+    </item>
+    <item>
+      <title>Quiet Post</title>
+      <link>https://example.com/quiet</link>
+      <author>Tyler</author>
+      <pubDate>{date}</pubDate>
+      <slash:comments>5</slash:comments>
+    </item>
+  </channel>
+</rss>
+"""
+
+
+def _make_rss_with_comments() -> str:
+    now = datetime.now(tz=timezone.utc)
+    recent = now - timedelta(hours=6)
+    date_str = recent.strftime("%a, %d %b %Y %H:%M:%S +0000")
+    return SAMPLE_RSS_WITH_COMMENTS.format(date=date_str)
+
+
+class TestMinCommentsFilter:
+    def test_filters_below_threshold(self):
+        source = FeedSource(
+            name="Prolific",
+            url="https://example.com",
+            feed_url="https://example.com/feed",
+            min_comments=50,
+        )
+        rss = _make_rss_with_comments()
+        mock_response = httpx.Response(
+            status_code=200,
+            text=rss,
+            request=httpx.Request("GET", "https://example.com/feed"),
+        )
+        with patch("blog_agent.feeds.httpx.get", return_value=mock_response):
+            posts = fetch_feed(source, lookback_days=3)
+
+        # Only the post with 120 comments should pass the min_comments=50 filter
+        assert len(posts) == 1
+        assert posts[0].title == "Popular Post"
+        assert posts[0].comments == 120
+
+    def test_no_filter_without_min_comments(self):
+        source = FeedSource(
+            name="Normal",
+            url="https://example.com",
+            feed_url="https://example.com/feed",
+        )
+        rss = _make_rss_with_comments()
+        mock_response = httpx.Response(
+            status_code=200,
+            text=rss,
+            request=httpx.Request("GET", "https://example.com/feed"),
+        )
+        with patch("blog_agent.feeds.httpx.get", return_value=mock_response):
+            posts = fetch_feed(source, lookback_days=3)
+
+        assert len(posts) == 3
+
+
+class TestMaxPostsLimit:
+    def test_truncates_to_max(self):
+        source = FeedSource(
+            name="Prolific",
+            url="https://example.com",
+            feed_url="https://example.com/feed",
+            max_posts=2,
+        )
+        rss = _make_rss_with_comments()
+        mock_response = httpx.Response(
+            status_code=200,
+            text=rss,
+            request=httpx.Request("GET", "https://example.com/feed"),
+        )
+        with patch("blog_agent.feeds.httpx.get", return_value=mock_response):
+            posts = fetch_feed(source, lookback_days=3)
+
+        assert len(posts) == 2
+
+    def test_no_limit_without_max_posts(self):
+        source = FeedSource(
+            name="Normal",
+            url="https://example.com",
+            feed_url="https://example.com/feed",
+        )
+        rss = _make_rss_with_comments()
+        mock_response = httpx.Response(
+            status_code=200,
+            text=rss,
+            request=httpx.Request("GET", "https://example.com/feed"),
+        )
+        with patch("blog_agent.feeds.httpx.get", return_value=mock_response):
+            posts = fetch_feed(source, lookback_days=3)
+
+        assert len(posts) == 3
+
+    def test_combined_min_comments_and_max_posts(self):
+        source = FeedSource(
+            name="Prolific",
+            url="https://example.com",
+            feed_url="https://example.com/feed",
+            min_comments=10,
+            max_posts=1,
+        )
+        rss = _make_rss_with_comments()
+        mock_response = httpx.Response(
+            status_code=200,
+            text=rss,
+            request=httpx.Request("GET", "https://example.com/feed"),
+        )
+        with patch("blog_agent.feeds.httpx.get", return_value=mock_response):
+            posts = fetch_feed(source, lookback_days=3)
+
+        # min_comments=10 passes Popular (120) and Medium (30), max_posts=1 keeps 1
+        assert len(posts) == 1

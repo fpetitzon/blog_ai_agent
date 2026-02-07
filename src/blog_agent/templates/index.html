@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blog Discovery Agent</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface-hover: #334155;
+      --border: #334155;
+      --text: #e2e8f0;
+      --text-dim: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #7dd3fc;
+      --green: #4ade80;
+      --red: #f87171;
+      --tag-bg: #1e3a5f;
+      --tag-text: #7dd3fc;
+      --unread-bg: rgba(56, 189, 248, 0.05);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .stats {
+      font-size: 0.875rem;
+      color: var(--text-dim);
+    }
+
+    .stats strong { color: var(--text); }
+
+    .layout {
+      display: flex;
+      max-width: 1400px;
+      margin: 0 auto;
+      min-height: calc(100vh - 60px);
+    }
+
+    /* --- Sidebar --- */
+    .sidebar {
+      width: 280px;
+      min-width: 280px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 1.5rem 1rem;
+      position: sticky;
+      top: 60px;
+      height: calc(100vh - 60px);
+      overflow-y: auto;
+    }
+
+    .sidebar h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 0.75rem;
+    }
+
+    .filter-group { margin-bottom: 1.5rem; }
+
+    .search-input {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .search-input:focus { border-color: var(--accent); }
+    .search-input::placeholder { color: var(--text-dim); }
+
+    .checkbox-group label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0;
+      font-size: 0.875rem;
+      cursor: pointer;
+      color: var(--text);
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 16px;
+      height: 16px;
+    }
+
+    .source-count {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    select.filter-select {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.875rem;
+      outline: none;
+      cursor: pointer;
+    }
+
+    select.filter-select:focus { border-color: var(--accent); }
+
+    /* --- Main content --- */
+    .main {
+      flex: 1;
+      padding: 1.5rem 2rem;
+    }
+
+    .post-list { list-style: none; }
+
+    .post-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 0.75rem;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .post-item:hover {
+      border-color: var(--accent);
+      background: var(--surface-hover);
+    }
+
+    .post-item.is-read { opacity: 0.55; }
+    .post-item.is-unread { background: var(--unread-bg); }
+
+    .post-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .post-title {
+      font-size: 1rem;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .post-title a {
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .post-title a:hover { color: var(--accent); }
+
+    .post-meta {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+
+    .post-meta .source {
+      background: var(--tag-bg);
+      color: var(--tag-text);
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    .badge-read {
+      color: var(--green);
+      font-size: 0.75rem;
+    }
+
+    .badge-unread {
+      color: var(--accent);
+      font-weight: 500;
+      font-size: 0.75rem;
+    }
+
+    .post-summary {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-dim);
+    }
+
+    .empty-state h3 {
+      font-size: 1.25rem;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    .loading {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: var(--text-dim);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 1rem;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .sidebar {
+        width: 100%;
+        min-width: unset;
+        position: static;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .main { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Blog Discovery Agent</h1>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="filter-group">
+        <h2>Search</h2>
+        <input type="text" class="search-input" id="searchInput"
+               placeholder="Filter by title or author...">
+      </div>
+
+      <div class="filter-group">
+        <h2>Read Status</h2>
+        <select class="filter-select" id="readFilter">
+          <option value="all">All posts</option>
+          <option value="unread">Unread only</option>
+          <option value="read">Read only</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <h2>Sources</h2>
+        <div class="checkbox-group" id="sourceFilters"></div>
+      </div>
+
+      <div class="filter-group">
+        <h2>Sort By</h2>
+        <select class="filter-select" id="sortBy">
+          <option value="date">Newest first</option>
+          <option value="date-asc">Oldest first</option>
+          <option value="comments">Most comments</option>
+          <option value="source">By source</option>
+        </select>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Fetching feeds...</p>
+      </div>
+      <ul class="post-list" id="postList" style="display:none"></ul>
+      <div class="empty-state" id="emptyState" style="display:none">
+        <h3>No posts match your filters</h3>
+        <p>Try adjusting the filters in the sidebar.</p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let allPosts = [];
+    const postList = document.getElementById('postList');
+    const loading = document.getElementById('loading');
+    const emptyState = document.getElementById('emptyState');
+    const stats = document.getElementById('stats');
+    const searchInput = document.getElementById('searchInput');
+    const readFilter = document.getElementById('readFilter');
+    const sortBy = document.getElementById('sortBy');
+    const sourceFilters = document.getElementById('sourceFilters');
+
+    async function fetchPosts() {
+      try {
+        const resp = await fetch('/api/posts');
+        allPosts = await resp.json();
+        buildSourceFilters();
+        render();
+      } catch (err) {
+        loading.innerHTML = '<p>Error loading posts. Is the server running?</p>';
+      }
+    }
+
+    function buildSourceFilters() {
+      const sources = {};
+      allPosts.forEach(p => {
+        sources[p.source_name] = (sources[p.source_name] || 0) + 1;
+      });
+      sourceFilters.innerHTML = Object.entries(sources)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([name, count]) => `
+          <label>
+            <input type="checkbox" value="${esc(name)}" checked>
+            ${esc(name)}
+            <span class="source-count">${count}</span>
+          </label>
+        `).join('');
+      sourceFilters.querySelectorAll('input').forEach(cb => {
+        cb.addEventListener('change', render);
+      });
+    }
+
+    function getActiveSources() {
+      return new Set(
+        [...sourceFilters.querySelectorAll('input:checked')]
+          .map(cb => cb.value)
+      );
+    }
+
+    function filterAndSort() {
+      const query = searchInput.value.toLowerCase();
+      const readVal = readFilter.value;
+      const sources = getActiveSources();
+      const sort = sortBy.value;
+
+      let posts = allPosts.filter(p => {
+        if (!sources.has(p.source_name)) return false;
+        if (readVal === 'unread' && p.is_read) return false;
+        if (readVal === 'read' && !p.is_read) return false;
+        if (query) {
+          const hay = (p.title + ' ' + p.author + ' ' + p.source_name).toLowerCase();
+          if (!hay.includes(query)) return false;
+        }
+        return true;
+      });
+
+      posts.sort((a, b) => {
+        switch (sort) {
+          case 'date':
+            return (b.published || '').localeCompare(a.published || '');
+          case 'date-asc':
+            return (a.published || '').localeCompare(b.published || '');
+          case 'comments':
+            return (b.comments || 0) - (a.comments || 0);
+          case 'source':
+            return a.source_name.localeCompare(b.source_name)
+                   || (b.published || '').localeCompare(a.published || '');
+          default:
+            return 0;
+        }
+      });
+
+      return posts;
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso);
+      const now = new Date();
+      const diffMs = now - d;
+      const diffH = Math.floor(diffMs / 3600000);
+      const diffD = Math.floor(diffMs / 86400000);
+      if (diffD === 0) {
+        if (diffH === 0) return 'just now';
+        return diffH + 'h ago';
+      }
+      if (diffD === 1) return 'yesterday';
+      if (diffD < 7) return diffD + 'd ago';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function render() {
+      const posts = filterAndSort();
+      loading.style.display = 'none';
+
+      if (posts.length === 0) {
+        postList.style.display = 'none';
+        emptyState.style.display = 'block';
+      } else {
+        emptyState.style.display = 'none';
+        postList.style.display = 'block';
+      }
+
+      const totalUnread = allPosts.filter(p => !p.is_read).length;
+      stats.innerHTML = `<strong>${allPosts.length}</strong> posts &middot; <strong>${totalUnread}</strong> unread &middot; showing <strong>${posts.length}</strong>`;
+
+      postList.innerHTML = posts.map(p => {
+        const cls = p.is_read ? 'post-item is-read' : 'post-item is-unread';
+        const readBadge = p.is_read
+          ? '<span class="badge badge-read">&#10003; Read</span>'
+          : '<span class="badge badge-unread">&#9679; New</span>';
+        const comments = p.comments != null ? `<span>${p.comments} comments</span>` : '';
+        const likes = p.likes != null ? `<span>${p.likes} likes</span>` : '';
+        const summary = p.summary ? `<p class="post-summary">${esc(p.summary.slice(0, 200))}</p>` : '';
+
+        return `
+          <li class="${cls}">
+            <div class="post-header">
+              <div style="flex:1">
+                <div class="post-title">
+                  <a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>
+                </div>
+                <div class="post-meta">
+                  <span class="source">${esc(p.source_name)}</span>
+                  <span>${esc(p.author)}</span>
+                  <span>${formatDate(p.published)}</span>
+                  ${comments}
+                  ${likes}
+                  ${readBadge}
+                </div>
+                ${summary}
+              </div>
+            </div>
+          </li>
+        `;
+      }).join('');
+    }
+
+    searchInput.addEventListener('input', render);
+    readFilter.addEventListener('change', render);
+    sortBy.addEventListener('change', render);
+
+    fetchPosts();
+  </script>
+</body>
+</html>

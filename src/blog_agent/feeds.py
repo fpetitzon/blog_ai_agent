@@ -63,7 +63,22 @@ def _extract_summary(entry: dict) -> str:
 
 def _extract_likes(entry: dict) -> int | None:
     """Try to extract a like/reaction count from feed metadata."""
-    # Some Substack feeds include slash:comments or similar extensions
+    for key in ("slash_comments", "thr_total"):
+        val = entry.get(key)
+        if val is not None:
+            try:
+                return int(val)
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def _extract_comments(entry: dict) -> int | None:
+    """Extract comment count from a feed entry.
+
+    WordPress feeds use the slash:comments namespace which feedparser
+    exposes as 'slash_comments'. Atom feeds may use thr:total.
+    """
     for key in ("slash_comments", "thr_total"):
         val = entry.get(key)
         if val is not None:
@@ -116,6 +131,12 @@ def fetch_feed(
         title = entry.get("title", "Untitled")
         link = entry.get("link", "")
         author = entry.get("author", source.name)
+        comments = _extract_comments(entry)
+
+        # Apply min_comments filter for prolific sources
+        if source.min_comments is not None:
+            if comments is None or comments < source.min_comments:
+                continue
 
         post = BlogPost(
             title=title,
@@ -124,9 +145,19 @@ def fetch_feed(
             published=published,
             summary=_extract_summary(entry),
             likes=_extract_likes(entry),
+            comments=comments,
             source_name=source.name,
         )
         posts.append(post)
+
+    # Apply max_posts limit (keep newest first)
+    if source.max_posts is not None and len(posts) > source.max_posts:
+        # Sort by date descending before truncating
+        posts.sort(
+            key=lambda p: p.published or datetime.min.replace(tzinfo=timezone.utc),
+            reverse=True,
+        )
+        posts = posts[: source.max_posts]
 
     logger.info("Found %d recent posts from %s", len(posts), source.name)
     return posts

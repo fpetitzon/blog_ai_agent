@@ -61,21 +61,21 @@ def _render_posts(posts: list[BlogPost], title: str = "New Blog Posts") -> None:
     table.add_column("Title", style="bold", max_width=55)
     table.add_column("Author / Source", max_width=25)
     table.add_column("Published", justify="center", width=11)
-    table.add_column("Likes", justify="right", width=6)
+    table.add_column("Comments", justify="right", width=8)
     table.add_column("Read?", justify="center", width=5)
     table.add_column("Link", max_width=50, no_wrap=True)
 
     for i, post in enumerate(posts, 1):
         read_marker = Text("Yes", style="green") if post.is_read else Text("No")
         title_style = "dim" if post.is_read else ""
-        likes_str = str(post.likes) if post.likes is not None else "—"
+        comments_str = str(post.comments) if post.comments is not None else "—"
 
         table.add_row(
             str(i),
             Text(post.title, style=title_style),
             post.author if post.author != post.source_name else post.source_name,
             _format_date(post.published),
-            likes_str,
+            comments_str,
             read_marker,
             post.url,
         )
@@ -93,7 +93,33 @@ def _render_posts(posts: list[BlogPost], title: str = "New Blog Posts") -> None:
     )
 
 
-@click.command()
+def _build_settings(
+    days: int | None,
+    no_history: bool,
+    feeds_file: str | None,
+    verbose: bool,
+) -> Settings:
+    """Build Settings from CLI options."""
+    _setup_logging(verbose)
+    settings = Settings()
+    if days is not None:
+        settings.lookback_days = days
+    if feeds_file:
+        settings.feeds_file = feeds_file
+    if no_history:
+        settings.check_firefox_history = False
+    return settings
+
+
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx: click.Context) -> None:
+    """Blog Discovery Agent - find new posts from your favorite blogs."""
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(check)
+
+
+@cli.command()
 @click.option(
     "--days",
     "-d",
@@ -119,13 +145,7 @@ def _render_posts(posts: list[BlogPost], title: str = "New Blog Posts") -> None:
     default=None,
     help="Path to a JSON file with custom feed sources.",
 )
-@click.option(
-    "--verbose",
-    "-v",
-    is_flag=True,
-    default=False,
-    help="Enable verbose logging.",
-)
+@click.option("--verbose", "-v", is_flag=True, default=False, help="Verbose logging.")
 @click.option(
     "--unread-only",
     "-u",
@@ -133,7 +153,7 @@ def _render_posts(posts: list[BlogPost], title: str = "New Blog Posts") -> None:
     default=False,
     help="Show only unread posts.",
 )
-def cli(
+def check(
     days: int | None,
     no_history: bool,
     discover: bool,
@@ -141,17 +161,8 @@ def cli(
     verbose: bool,
     unread_only: bool,
 ) -> None:
-    """Blog Discovery Agent - find new posts from your favorite blogs."""
-    _setup_logging(verbose)
-
-    settings = Settings()
-    if days is not None:
-        settings.lookback_days = days
-    if feeds_file:
-        settings.feeds_file = feeds_file
-    if no_history:
-        settings.check_firefox_history = False
-
+    """Check feeds and display posts in the terminal (default command)."""
+    settings = _build_settings(days, no_history, feeds_file, verbose)
     sources = settings.get_feeds()
 
     console.print(
@@ -169,6 +180,7 @@ def cli(
         )
 
     # Check Firefox history
+    visited: set[str] = set()
     if settings.check_firefox_history and posts:
         with console.status("[bold green]Checking Firefox history..."):
             visited = get_visited_urls(
@@ -221,6 +233,52 @@ def cli(
                 _render_posts(discovered_posts, title="Posts from Discovered Blogs")
         else:
             console.print("  [dim]No new blogs discovered.[/dim]\n")
+
+
+@cli.command()
+@click.option(
+    "--days",
+    "-d",
+    default=None,
+    type=int,
+    help="Number of days to look back (default: 3).",
+)
+@click.option(
+    "--no-history",
+    is_flag=True,
+    default=False,
+    help="Skip Firefox history check.",
+)
+@click.option(
+    "--feeds-file",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to a JSON file with custom feed sources.",
+)
+@click.option("--verbose", "-v", is_flag=True, default=False, help="Verbose logging.")
+@click.option("--port", "-p", default=5000, type=int, help="Port (default: 5000).")
+@click.option("--host", "-h", default="127.0.0.1", help="Host (default: 127.0.0.1).")
+def web(
+    days: int | None,
+    no_history: bool,
+    feeds_file: str | None,
+    verbose: bool,
+    port: int,
+    host: str,
+) -> None:
+    """Launch the web UI to browse and filter posts."""
+    settings = _build_settings(days, no_history, feeds_file, verbose)
+
+    from blog_agent.web import create_app
+
+    app = create_app(settings)
+
+    console.print(
+        f"\n[bold cyan]Blog Discovery Agent[/bold cyan] — "
+        f"web UI at [link]http://{host}:{port}[/link]\n"
+    )
+
+    app.run(host=host, port=port, debug=verbose)
 
 
 def main() -> None:
