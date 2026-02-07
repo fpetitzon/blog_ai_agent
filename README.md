@@ -11,8 +11,13 @@ you might enjoy.
   already read (Linux, macOS, Windows)
 - **Blog discovery** — finds recommended/related blogs via Substack
   recommendations and blogroll pages
+- **Web UI** — browser-based interface with real-time filtering by source,
+  read status, search, and sorting (date, comments, source)
 - **Rich terminal output** — presents posts in a clean, sortable table with
-  title, author, date, likes, and read status
+  title, author, date, comments, and read status
+- **Prolific author controls** — per-source `max_posts` and `min_comments`
+  thresholds to tame high-volume blogs (e.g. Marginal Revolution: max 5 posts
+  with 50+ comments)
 - **Configurable** — custom feeds via JSON file, adjustable lookback window,
   environment variable overrides
 
@@ -22,7 +27,7 @@ The agent ships with these blogs pre-configured:
 
 | Blog | Topics |
 |------|--------|
-| [Marginal Revolution](https://marginalrevolution.com/) | Economics, Culture |
+| [Marginal Revolution](https://marginalrevolution.com/) | Economics, Culture (max 5, 50+ comments) |
 | [Bet On It (Bryan Caplan)](https://www.betonit.ai/) | Economics, Prediction |
 | [Cremieux Recueil](https://www.cremieux.xyz/) | Data, Statistics |
 | [Astral Codex Ten](https://www.astralcodexten.com/) | Rationality, Science |
@@ -43,26 +48,30 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### Run the agent directly (no install needed)
 
 ```bash
-# Run with default settings (last 3 days)
+# Terminal mode (default) — last 3 days
 uv run blog-agent
 
+# Launch the web UI
+uv run blog-agent web
+uv run blog-agent web --port 8080
+
 # Look back 7 days
-uv run blog-agent --days 7
+uv run blog-agent check --days 7
 
 # Show only unread posts
-uv run blog-agent --unread-only
+uv run blog-agent check --unread-only
 
 # Skip Firefox history check
-uv run blog-agent --no-history
+uv run blog-agent check --no-history
 
 # Also discover related blogs
-uv run blog-agent --discover
+uv run blog-agent check --discover
 
 # Verbose logging
-uv run blog-agent -v
+uv run blog-agent check -v
 
 # Use custom feeds file
-uv run blog-agent --feeds-file my_feeds.json
+uv run blog-agent check --feeds-file my_feeds.json
 ```
 
 ### Install into a virtual environment
@@ -106,6 +115,12 @@ Create a JSON file with your own feeds:
     "url": "https://example.com",
     "feed_url": "https://example.com/rss.xml",
     "tags": ["tech", "culture"]
+  },
+  {
+    "name": "Prolific Blog",
+    "url": "https://prolific.example.com",
+    "max_posts": 5,
+    "min_comments": 20
   },
   {
     "name": "Another Blog",
@@ -168,7 +183,10 @@ src/blog_agent/
 ├── config.py                # Settings management
 ├── feeds.py                 # RSS/Atom feed fetching
 ├── firefox_history.py       # Firefox history reading
-└── discovery.py             # Blog discovery engine
+├── discovery.py             # Blog discovery engine
+├── web.py                   # Flask web UI backend
+└── templates/
+    └── index.html           # Web UI (single-page app)
 ```
 
 ### How It Works
@@ -181,7 +199,10 @@ src/blog_agent/
    slashes) to match blog post URLs against history
 4. **Discovery** — scrapes Substack `/recommendations` pages and blog
    `/blogroll` pages to find related publications
-5. **Display** — renders everything in a Rich table sorted by date
+5. **Per-source filtering** — applies `max_posts` and `min_comments`
+   thresholds to cap prolific sources like Marginal Revolution
+6. **Display** — renders in either a Rich terminal table or a web UI with
+   client-side filtering (search, source, read status, sort)
 
 ## License
 

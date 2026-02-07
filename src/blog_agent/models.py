@@ -23,6 +23,10 @@ class FeedSource(BaseModel):
     feed_type: FeedType = FeedType.RSS
     tags: list[str] = Field(default_factory=list)
 
+    # Per-source limits for prolific authors
+    max_posts: int | None = None  # None = no limit
+    min_comments: int | None = None  # None = no minimum
+
     def get_feed_url(self) -> str:
         """Return the feed URL, falling back to common patterns."""
         if self.feed_url:
@@ -66,6 +70,8 @@ DEFAULT_FEEDS: list[FeedSource] = [
         url="https://marginalrevolution.com/",
         feed_url="https://marginalrevolution.com/feed",
         tags=["economics", "culture"],
+        max_posts=5,
+        min_comments=50,
     ),
     FeedSource(
         name="Bet On It (Bryan Caplan)",
