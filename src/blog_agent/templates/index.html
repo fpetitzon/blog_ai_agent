@@ -16,6 +16,7 @@
       --accent-hover: #7dd3fc;
       --green: #4ade80;
       --red: #f87171;
+      --orange: #fb923c;
       --tag-bg: #1e3a5f;
       --tag-text: #7dd3fc;
       --unread-bg: rgba(56, 189, 248, 0.05);
@@ -43,18 +44,31 @@
       z-index: 100;
     }
 
-    header h1 {
-      font-size: 1.25rem;
-      font-weight: 600;
-      color: var(--accent);
-    }
+    header h1 { font-size: 1.25rem; font-weight: 600; color: var(--accent); }
 
-    .stats {
-      font-size: 0.875rem;
-      color: var(--text-dim);
-    }
+    .header-right { display: flex; align-items: center; gap: 1rem; }
 
+    .stats { font-size: 0.875rem; color: var(--text-dim); }
     .stats strong { color: var(--text); }
+
+    .tab-bar {
+      display: flex;
+      gap: 0.25rem;
+    }
+
+    .tab-btn {
+      padding: 0.4rem 1rem;
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.15s;
+    }
+
+    .tab-btn:hover { color: var(--text); border-color: var(--accent); }
+    .tab-btn.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 
     .layout {
       display: flex;
@@ -63,7 +77,6 @@
       min-height: calc(100vh - 60px);
     }
 
-    /* --- Sidebar --- */
     .sidebar {
       width: 280px;
       min-width: 280px;
@@ -86,7 +99,7 @@
 
     .filter-group { margin-bottom: 1.5rem; }
 
-    .search-input {
+    .search-input, select.filter-select {
       width: 100%;
       padding: 0.5rem 0.75rem;
       background: var(--bg);
@@ -98,8 +111,9 @@
       transition: border-color 0.15s;
     }
 
-    .search-input:focus { border-color: var(--accent); }
+    .search-input:focus, select.filter-select:focus { border-color: var(--accent); }
     .search-input::placeholder { color: var(--text-dim); }
+    select.filter-select { cursor: pointer; }
 
     .checkbox-group label {
       display: flex;
@@ -123,26 +137,7 @@
       color: var(--text-dim);
     }
 
-    select.filter-select {
-      width: 100%;
-      padding: 0.5rem 0.75rem;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      font-size: 0.875rem;
-      outline: none;
-      cursor: pointer;
-    }
-
-    select.filter-select:focus { border-color: var(--accent); }
-
-    /* --- Main content --- */
-    .main {
-      flex: 1;
-      padding: 1.5rem 2rem;
-    }
-
+    .main { flex: 1; padding: 1.5rem 2rem; }
     .post-list { list-style: none; }
 
     .post-item {
@@ -154,31 +149,14 @@
       transition: border-color 0.15s, background 0.15s;
     }
 
-    .post-item:hover {
-      border-color: var(--accent);
-      background: var(--surface-hover);
-    }
-
+    .post-item:hover { border-color: var(--accent); background: var(--surface-hover); }
     .post-item.is-read { opacity: 0.55; }
     .post-item.is-unread { background: var(--unread-bg); }
 
-    .post-header {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-    }
+    .post-header { display: flex; align-items: flex-start; gap: 0.75rem; }
 
-    .post-title {
-      font-size: 1rem;
-      font-weight: 600;
-      flex: 1;
-    }
-
-    .post-title a {
-      color: var(--text);
-      text-decoration: none;
-    }
-
+    .post-title { font-size: 1rem; font-weight: 600; flex: 1; }
+    .post-title a { color: var(--text); text-decoration: none; }
     .post-title a:hover { color: var(--accent); }
 
     .post-meta {
@@ -198,22 +176,9 @@
       font-size: 0.75rem;
     }
 
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-    }
-
-    .badge-read {
-      color: var(--green);
-      font-size: 0.75rem;
-    }
-
-    .badge-unread {
-      color: var(--accent);
-      font-weight: 500;
-      font-size: 0.75rem;
-    }
+    .badge { display: inline-flex; align-items: center; gap: 0.25rem; }
+    .badge-read { color: var(--green); font-size: 0.75rem; }
+    .badge-unread { color: var(--accent); font-weight: 500; font-size: 0.75rem; }
 
     .post-summary {
       margin-top: 0.5rem;
@@ -231,17 +196,9 @@
       color: var(--text-dim);
     }
 
-    .empty-state h3 {
-      font-size: 1.25rem;
-      margin-bottom: 0.5rem;
-      color: var(--text);
-    }
+    .empty-state h3 { font-size: 1.25rem; margin-bottom: 0.5rem; color: var(--text); }
 
-    .loading {
-      text-align: center;
-      padding: 4rem 2rem;
-      color: var(--text-dim);
-    }
+    .loading { text-align: center; padding: 4rem 2rem; color: var(--text-dim); }
 
     .spinner {
       display: inline-block;
@@ -255,6 +212,122 @@
     }
 
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Load older button */
+    .load-older-bar {
+      text-align: center;
+      padding: 1rem;
+    }
+
+    .btn {
+      padding: 0.5rem 1.25rem;
+      background: var(--surface);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.15s;
+    }
+
+    .btn:hover { background: var(--accent); color: var(--bg); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Suggestion cards */
+    .suggestion-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 0.75rem;
+      transition: border-color 0.15s;
+    }
+
+    .suggestion-card:hover { border-color: var(--accent); }
+
+    .suggestion-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .suggestion-name { font-weight: 600; font-size: 1rem; }
+    .suggestion-url { font-size: 0.8rem; color: var(--text-dim); }
+
+    .suggestion-tags {
+      display: flex;
+      gap: 0.35rem;
+      margin-top: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      background: var(--tag-bg);
+      color: var(--tag-text);
+      padding: 0.1rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+    }
+
+    .suggestion-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    .btn-like {
+      padding: 0.3rem 0.75rem;
+      background: transparent;
+      color: var(--green);
+      border: 1px solid var(--green);
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.15s;
+    }
+
+    .btn-like:hover { background: var(--green); color: var(--bg); }
+
+    .btn-discard {
+      padding: 0.3rem 0.75rem;
+      background: transparent;
+      color: var(--red);
+      border: 1px solid var(--red);
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      transition: all 0.15s;
+    }
+
+    .btn-discard:hover { background: var(--red); color: var(--bg); }
+
+    .liked-section {
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .liked-section h3 {
+      font-size: 0.875rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+
+    .liked-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      font-size: 0.875rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .liked-item:last-child { border-bottom: none; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
 
     @media (max-width: 768px) {
       .layout { flex-direction: column; }
@@ -273,11 +346,17 @@
 <body>
   <header>
     <h1>Blog Discovery Agent</h1>
-    <div class="stats" id="stats"></div>
+    <div class="header-right">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="posts">Posts</button>
+        <button class="tab-btn" data-tab="suggestions">Discover</button>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
   </header>
 
   <div class="layout">
-    <aside class="sidebar">
+    <aside class="sidebar" id="postsSidebar">
       <div class="filter-group">
         <h2>Search</h2>
         <input type="text" class="search-input" id="searchInput"
@@ -310,20 +389,42 @@
     </aside>
 
     <main class="main">
-      <div class="loading" id="loading">
-        <div class="spinner"></div>
-        <p>Fetching feeds...</p>
+      <!-- Posts tab -->
+      <div class="tab-content active" id="postsTab">
+        <div class="loading" id="loading">
+          <div class="spinner"></div>
+          <p>Fetching feeds...</p>
+        </div>
+        <ul class="post-list" id="postList" style="display:none"></ul>
+        <div class="empty-state" id="emptyState" style="display:none">
+          <h3>No posts match your filters</h3>
+          <p>Try adjusting the filters in the sidebar.</p>
+        </div>
+        <div class="load-older-bar" id="loadOlderBar" style="display:none">
+          <button class="btn" id="loadOlderBtn">Load older posts</button>
+          <span id="lookbackInfo" style="margin-left:0.75rem;font-size:0.8rem;color:var(--text-dim)"></span>
+        </div>
       </div>
-      <ul class="post-list" id="postList" style="display:none"></ul>
-      <div class="empty-state" id="emptyState" style="display:none">
-        <h3>No posts match your filters</h3>
-        <p>Try adjusting the filters in the sidebar.</p>
+
+      <!-- Suggestions tab -->
+      <div class="tab-content" id="suggestionsTab">
+        <div class="loading" id="suggestionsLoading" style="display:none">
+          <div class="spinner"></div>
+          <p>Loading suggestions...</p>
+        </div>
+        <div id="suggestionsList"></div>
+        <div class="liked-section" id="likedSection" style="display:none">
+          <h3>Blogs you liked</h3>
+          <div id="likedList"></div>
+        </div>
       </div>
     </main>
   </div>
 
   <script>
     let allPosts = [];
+    let currentLookback = 3;
+
     const postList = document.getElementById('postList');
     const loading = document.getElementById('loading');
     const emptyState = document.getElementById('emptyState');
@@ -332,15 +433,37 @@
     const readFilter = document.getElementById('readFilter');
     const sortBy = document.getElementById('sortBy');
     const sourceFilters = document.getElementById('sourceFilters');
+    const loadOlderBar = document.getElementById('loadOlderBar');
+    const loadOlderBtn = document.getElementById('loadOlderBtn');
+    const lookbackInfo = document.getElementById('lookbackInfo');
+    const postsSidebar = document.getElementById('postsSidebar');
 
-    async function fetchPosts() {
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab + 'Tab').classList.add('active');
+        postsSidebar.style.display = btn.dataset.tab === 'posts' ? '' : 'none';
+        if (btn.dataset.tab === 'suggestions') loadSuggestions();
+      });
+    });
+
+    // --- Posts ---
+    async function fetchPosts(days) {
       try {
-        const resp = await fetch('/api/posts');
-        allPosts = await resp.json();
+        loading.style.display = '';
+        postList.style.display = 'none';
+        const url = days ? `/api/posts?days=${days}` : '/api/posts';
+        const resp = await fetch(url);
+        const data = await resp.json();
+        allPosts = data.posts;
+        currentLookback = data.lookback_days;
         buildSourceFilters();
-        render();
+        renderPosts();
       } catch (err) {
-        loading.innerHTML = '<p>Error loading posts. Is the server running?</p>';
+        loading.innerHTML = '<p>Error loading posts.</p>';
       }
     }
 
@@ -359,15 +482,12 @@
           </label>
         `).join('');
       sourceFilters.querySelectorAll('input').forEach(cb => {
-        cb.addEventListener('change', render);
+        cb.addEventListener('change', renderPosts);
       });
     }
 
     function getActiveSources() {
-      return new Set(
-        [...sourceFilters.querySelectorAll('input:checked')]
-          .map(cb => cb.value)
-      );
+      return new Set([...sourceFilters.querySelectorAll('input:checked')].map(cb => cb.value));
     }
 
     function filterAndSort() {
@@ -389,46 +509,39 @@
 
       posts.sort((a, b) => {
         switch (sort) {
-          case 'date':
-            return (b.published || '').localeCompare(a.published || '');
-          case 'date-asc':
-            return (a.published || '').localeCompare(b.published || '');
-          case 'comments':
-            return (b.comments || 0) - (a.comments || 0);
+          case 'date': return (b.published || '').localeCompare(a.published || '');
+          case 'date-asc': return (a.published || '').localeCompare(b.published || '');
+          case 'comments': return (b.comments || 0) - (a.comments || 0);
           case 'source':
             return a.source_name.localeCompare(b.source_name)
                    || (b.published || '').localeCompare(a.published || '');
-          default:
-            return 0;
+          default: return 0;
         }
       });
-
       return posts;
     }
 
     function formatDate(iso) {
-      if (!iso) return '—';
+      if (!iso) return '\u2014';
       const d = new Date(iso);
       const now = new Date();
       const diffMs = now - d;
       const diffH = Math.floor(diffMs / 3600000);
       const diffD = Math.floor(diffMs / 86400000);
-      if (diffD === 0) {
-        if (diffH === 0) return 'just now';
-        return diffH + 'h ago';
-      }
+      if (diffD === 0) { return diffH === 0 ? 'just now' : diffH + 'h ago'; }
       if (diffD === 1) return 'yesterday';
       if (diffD < 7) return diffD + 'd ago';
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
 
     function esc(s) {
+      if (!s) return '';
       const d = document.createElement('div');
       d.textContent = s;
       return d.innerHTML;
     }
 
-    function render() {
+    function renderPosts() {
       const posts = filterAndSort();
       loading.style.display = 'none';
 
@@ -473,12 +586,114 @@
           </li>
         `;
       }).join('');
+
+      // Show load-older bar
+      loadOlderBar.style.display = '';
+      lookbackInfo.textContent = `Showing last ${currentLookback} days`;
     }
 
-    searchInput.addEventListener('input', render);
-    readFilter.addEventListener('change', render);
-    sortBy.addEventListener('change', render);
+    loadOlderBtn.addEventListener('click', async () => {
+      const newDays = currentLookback + 7;
+      loadOlderBtn.disabled = true;
+      loadOlderBtn.textContent = 'Loading...';
+      await fetchPosts(newDays);
+      loadOlderBtn.disabled = false;
+      loadOlderBtn.textContent = 'Load older posts';
+    });
 
+    searchInput.addEventListener('input', renderPosts);
+    readFilter.addEventListener('change', renderPosts);
+    sortBy.addEventListener('change', renderPosts);
+
+    // --- Suggestions ---
+    async function loadSuggestions() {
+      const list = document.getElementById('suggestionsList');
+      const likedSection = document.getElementById('likedSection');
+      const likedList = document.getElementById('likedList');
+      const suggestionsLoading = document.getElementById('suggestionsLoading');
+
+      suggestionsLoading.style.display = '';
+      list.innerHTML = '';
+
+      try {
+        const resp = await fetch('/api/suggestions');
+        const data = await resp.json();
+        suggestionsLoading.style.display = 'none';
+
+        if (data.suggestions.length === 0) {
+          list.innerHTML = '<div class="empty-state"><h3>No suggestions left</h3><p>You\'ve reviewed all available suggestions.</p></div>';
+        } else {
+          list.innerHTML = data.suggestions.map(s => `
+            <div class="suggestion-card" data-url="${esc(s.url)}">
+              <div class="suggestion-header">
+                <div>
+                  <div class="suggestion-name">${esc(s.name)}</div>
+                  <div class="suggestion-url">${esc(s.url)}</div>
+                  <div class="suggestion-tags">
+                    ${(s.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
+                  </div>
+                </div>
+                <div class="suggestion-actions">
+                  <button class="btn-like" onclick="likeSuggestion(this)" data-feed='${esc(JSON.stringify(s))}'>Like</button>
+                  <button class="btn-discard" onclick="discardSuggestion(this, '${esc(s.url)}')">Not for me</button>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        // Liked section
+        if (data.liked.length > 0) {
+          likedSection.style.display = '';
+          likedList.innerHTML = data.liked.map(s => `
+            <div class="liked-item">
+              <span>${esc(s.name)} <span style="color:var(--text-dim)">${esc(s.url)}</span></span>
+              <span style="color:var(--text-dim);font-size:0.75rem">${(s.tags || []).join(', ')}</span>
+            </div>
+          `).join('');
+        } else {
+          likedSection.style.display = 'none';
+        }
+      } catch (err) {
+        suggestionsLoading.style.display = 'none';
+        list.innerHTML = '<div class="empty-state"><p>Error loading suggestions.</p></div>';
+      }
+    }
+
+    async function likeSuggestion(btn) {
+      const feed = JSON.parse(btn.dataset.feed);
+      btn.disabled = true;
+      btn.textContent = 'Liked!';
+      btn.style.background = 'var(--green)';
+      btn.style.color = 'var(--bg)';
+      await fetch('/api/suggestions/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(feed),
+      });
+      setTimeout(() => {
+        btn.closest('.suggestion-card').style.display = 'none';
+        loadSuggestions();
+      }, 600);
+    }
+
+    async function discardSuggestion(btn, url) {
+      btn.disabled = true;
+      btn.textContent = 'Dismissed';
+      btn.style.background = 'var(--red)';
+      btn.style.color = 'var(--bg)';
+      await fetch('/api/suggestions/discard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      setTimeout(() => {
+        btn.closest('.suggestion-card').style.display = 'none';
+        loadSuggestions();
+      }, 600);
+    }
+
+    // Boot
     fetchPosts();
   </script>
 </body>
