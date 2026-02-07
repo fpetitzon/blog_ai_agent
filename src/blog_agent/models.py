@@ -4,8 +4,19 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
+
+
+def normalize_url(url: str) -> str:
+    """Normalize a URL for comparison.
+
+    Strips query params, fragments, and trailing slashes, then lowercases.
+    """
+    parsed = urlparse(url)
+    normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+    return normalized.rstrip("/").lower()
 
 
 class FeedType(str, Enum):

@@ -10,7 +10,7 @@ from flask import Flask, jsonify, render_template, request
 from blog_agent.config import Settings
 from blog_agent.feeds import fetch_all_feeds
 from blog_agent.firefox_history import get_visited_urls, mark_read_posts
-from blog_agent.models import FeedSource
+from blog_agent.models import FeedSource, normalize_url
 from blog_agent.preferences import (
     get_suggestions,
     load_preferences,
@@ -28,10 +28,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     if settings is None:
         settings = Settings()
 
-    # Store settings on app for access in routes
     app.config["BLOG_SETTINGS"] = settings
-
-    # Cache for fetched posts, keyed by lookback_days
     app.config["CACHED_POSTS"] = None
     app.config["CACHED_LOOKBACK"] = settings.lookback_days
 
@@ -41,10 +38,9 @@ def create_app(settings: Settings | None = None) -> Flask:
 
     @app.route("/api/posts")
     def api_posts():
-        """Return posts as JSON. Accepts ?days=N to widen the window."""
+        """Return posts as JSON. Accepts ?days=N."""
         days = request.args.get("days", type=int)
         if days and days != app.config["CACHED_LOOKBACK"]:
-            # User requested a different time window — re-fetch
             app.config["CACHED_LOOKBACK"] = days
             _refresh_posts(app, lookback_days=days)
         elif app.config["CACHED_POSTS"] is None:
@@ -72,8 +68,8 @@ def create_app(settings: Settings | None = None) -> Flask:
     def api_suggestions():
         """Return suggested blogs based on preferences."""
         prefs = load_preferences()
-        existing_urls = {s.url.rstrip("/").lower() for s in settings.get_feeds()}
-        suggestions = get_suggestions(prefs, existing_urls)
+        existing = {normalize_url(s.url) for s in settings.get_feeds()}
+        suggestions = get_suggestions(prefs, existing)
         return jsonify(
             {
                 "suggestions": [s.model_dump(mode="json") for s in suggestions],

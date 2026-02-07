@@ -73,7 +73,7 @@ def _render_posts(posts: list[BlogPost], title: str = "New Blog Posts") -> None:
         table.add_row(
             str(i),
             Text(post.title, style=title_style),
-            post.author if post.author != post.source_name else post.source_name,
+            post.author,
             _format_date(post.published),
             comments_str,
             read_marker,
