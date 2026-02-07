@@ -11,8 +11,16 @@ you might enjoy.
   already read (Linux, macOS, Windows)
 - **Blog discovery** — finds recommended/related blogs via Substack
   recommendations and blogroll pages
+- **Blog suggestions** — curated list of 18 diverse blogs outside your comfort
+  zone, with like/discard tracking to refine future suggestions
+- **Preference tracking** — liked and discarded blogs stored locally in
+  `~/.config/blog-agent/preferences.json`; tag-based ranking boosts blogs
+  similar to ones you've liked
+- **Load older posts** — "Show more" button in the web UI widens the lookback
+  window to fetch older posts beyond the initial time range
 - **Web UI** — browser-based interface with real-time filtering by source,
-  read status, search, and sorting (date, comments, source)
+  read status, search, and sorting (date, comments, source); includes a
+  Discover tab for browsing and rating suggested blogs
 - **Rich terminal output** — presents posts in a clean, sortable table with
   title, author, date, comments, and read status
 - **Prolific author controls** — per-source `max_posts` and `min_comments`
@@ -173,6 +181,33 @@ uv run flake8 src/ tests/             # linting
 uv run mypy src/                      # type checking
 ```
 
+## Suggested Blogs
+
+The Discover tab in the web UI offers 18 curated blogs outside your default
+reading list. When you **like** or **discard** suggestions, your choices are
+saved locally and used to rank future suggestions by tag overlap.
+
+| Blog | Topics |
+|------|--------|
+| Stratechery | Tech, Business, Strategy |
+| Construction Physics | Engineering, Infrastructure, Progress |
+| Noahpinion | Economics, Policy, Culture |
+| Slow Boring | Policy, Politics, Economics |
+| Scholars Stage | Geopolitics, History, China |
+| Dan Luu | Tech, Engineering, Systems |
+| Palladium Magazine | Governance, Philosophy, Civilization |
+| Overcoming Bias | Rationality, Economics, Futurism |
+| Bits about Money | Finance, Infrastructure, Tech |
+| The Intrinsic Perspective | Neuroscience, Consciousness, Culture |
+| Experimental History | Psychology, Science, Humor |
+| Dwarkesh Patel | Tech, Interviews, Progress |
+| Matt Lakeman | Travel, Culture, History |
+| Roots of Progress | Progress, Science, History |
+| Cold Takes | AI, Philanthropy, Futurism |
+| Applied Divinity Studies | Rationality, Culture, Contrarian |
+| Matt Levine (Money Stuff) | Finance, Law, Humor |
+| Works in Progress | Progress, Science, Policy |
+
 ## Architecture
 
 ```
@@ -184,6 +219,7 @@ src/blog_agent/
 ├── feeds.py                 # RSS/Atom feed fetching
 ├── firefox_history.py       # Firefox history reading
 ├── discovery.py             # Blog discovery engine
+├── preferences.py           # Like/discard tracking + suggestion ranking
 ├── web.py                   # Flask web UI backend
 └── templates/
     └── index.html           # Web UI (single-page app)
@@ -201,8 +237,11 @@ src/blog_agent/
    `/blogroll` pages to find related publications
 5. **Per-source filtering** — applies `max_posts` and `min_comments`
    thresholds to cap prolific sources like Marginal Revolution
-6. **Display** — renders in either a Rich terminal table or a web UI with
-   client-side filtering (search, source, read status, sort)
+6. **Suggestions** — ranks curated blogs by tag overlap with the user's
+   liked blogs; filters out already-followed, liked, and discarded feeds
+7. **Display** — renders in either a Rich terminal table or a web UI with
+   client-side filtering (search, source, read status, sort) plus a Discover
+   tab for browsing suggestions
 
 ## License
 
