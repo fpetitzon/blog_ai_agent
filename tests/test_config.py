@@ -1,9 +1,11 @@
 """Tests for configuration."""
 
 import json
+from unittest.mock import patch
 
 from blog_agent.config import Settings
-from blog_agent.models import DEFAULT_FEEDS
+from blog_agent.models import DEFAULT_FEEDS, FeedSource
+from blog_agent.preferences import Preferences
 
 
 class TestSettings:
@@ -47,3 +49,50 @@ class TestSettings:
     def test_max_concurrent_default(self):
         settings = Settings()
         assert settings.max_concurrent == 5
+
+
+class TestDiscoveryLoop:
+    def test_liked_blogs_merged_into_feeds(self):
+        liked_blog = FeedSource(
+            name="Liked Blog",
+            url="https://liked.example.com",
+            tags=["tech"],
+        )
+        prefs = Preferences(liked=[liked_blog])
+
+        with patch(
+            "blog_agent.preferences.load_preferences", return_value=prefs
+        ):
+            settings = Settings()
+            feeds = settings.get_feeds()
+
+        urls = {f.url for f in feeds}
+        assert "https://liked.example.com" in urls
+        assert len(feeds) == len(DEFAULT_FEEDS) + 1
+
+    def test_liked_duplicates_not_added(self):
+        """A liked blog whose URL matches a default feed should not duplicate."""
+        first_default = DEFAULT_FEEDS[0]
+        liked_blog = FeedSource(
+            name=first_default.name,
+            url=first_default.url,
+            tags=["duplicate"],
+        )
+        prefs = Preferences(liked=[liked_blog])
+
+        with patch(
+            "blog_agent.preferences.load_preferences", return_value=prefs
+        ):
+            settings = Settings()
+            feeds = settings.get_feeds()
+
+        assert len(feeds) == len(DEFAULT_FEEDS)
+
+    def test_empty_preferences_returns_defaults(self):
+        with patch(
+            "blog_agent.preferences.load_preferences",
+            return_value=Preferences(),
+        ):
+            settings = Settings()
+            feeds = settings.get_feeds()
+        assert len(feeds) == len(DEFAULT_FEEDS)

@@ -7,14 +7,17 @@ from datetime import datetime, timezone
 
 import click
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
 
 from blog_agent.config import Settings
+from blog_agent.digest import generate_digest
 from blog_agent.discovery import discover_related_feeds
 from blog_agent.feeds import fetch_all_feeds
 from blog_agent.firefox_history import get_visited_urls, mark_read_posts
 from blog_agent.models import BlogPost
+from blog_agent.storage import open_db, save_digest, upsert_posts
 
 console = Console()
 
@@ -30,7 +33,7 @@ def _setup_logging(verbose: bool) -> None:
 
 def _format_date(dt: datetime | None) -> str:
     if dt is None:
-        return "—"
+        return "\u2014"
     now = datetime.now(tz=timezone.utc)
     delta = now - dt
     if delta.days == 0:
@@ -68,7 +71,7 @@ def _render_posts(posts: list[BlogPost], title: str = "New Blog Posts") -> None:
     for i, post in enumerate(posts, 1):
         read_marker = Text("Yes", style="green") if post.is_read else Text("No")
         title_style = "dim" if post.is_read else ""
-        comments_str = str(post.comments) if post.comments is not None else "—"
+        comments_str = str(post.comments) if post.comments is not None else "\u2014"
 
         table.add_row(
             str(i),
@@ -166,7 +169,7 @@ def check(
     sources = settings.get_feeds()
 
     console.print(
-        f"\n[bold cyan]Blog Discovery Agent[/bold cyan] — "
+        f"\n[bold cyan]Blog Discovery Agent[/bold cyan] \u2014 "
         f"checking {len(sources)} feeds "
         f"(last {settings.lookback_days} days)\n"
     )
@@ -189,6 +192,19 @@ def check(
             )
             if visited:
                 mark_read_posts(posts, visited)
+
+    # Persist to SQLite
+    if posts:
+        try:
+            conn = open_db()
+            new_count = upsert_posts(conn, posts)
+            conn.close()
+            if verbose:
+                console.print(
+                    f"  [dim]Persisted {new_count} new posts to database[/dim]"
+                )
+        except Exception:
+            pass  # storage is best-effort
 
     # Filter if requested
     display_posts = posts
@@ -274,11 +290,94 @@ def web(
     app = create_app(settings)
 
     console.print(
-        f"\n[bold cyan]Blog Discovery Agent[/bold cyan] — "
+        f"\n[bold cyan]Blog Discovery Agent[/bold cyan] \u2014 "
         f"web UI at [link]http://{host}:{port}[/link]\n"
     )
 
     app.run(host=host, port=port, debug=verbose)
+
+
+@cli.command()
+@click.option(
+    "--days",
+    "-d",
+    default=None,
+    type=int,
+    help="Number of days to include in digest (default: 3).",
+)
+@click.option(
+    "--no-history",
+    is_flag=True,
+    default=False,
+    help="Skip Firefox history check.",
+)
+@click.option(
+    "--feeds-file",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to a JSON file with custom feed sources.",
+)
+@click.option("--verbose", "-v", is_flag=True, default=False, help="Verbose logging.")
+def digest(
+    days: int | None,
+    no_history: bool,
+    feeds_file: str | None,
+    verbose: bool,
+) -> None:
+    """Generate an AI-powered digest of recent posts.
+
+    Requires ANTHROPIC_API_KEY to be set.
+    """
+    settings = _build_settings(days, no_history, feeds_file, verbose)
+    sources = settings.get_feeds()
+
+    console.print(
+        f"\n[bold cyan]Blog Discovery Agent[/bold cyan] \u2014 "
+        f"generating digest ({settings.lookback_days} days)\n"
+    )
+
+    # Fetch posts
+    with console.status("[bold green]Fetching feeds..."):
+        posts = fetch_all_feeds(
+            sources,
+            timeout=settings.request_timeout,
+            lookback_days=settings.lookback_days,
+        )
+
+    if not posts:
+        console.print("[dim]No posts found to digest.[/dim]\n")
+        return
+
+    # Persist posts
+    try:
+        conn = open_db()
+        upsert_posts(conn, posts)
+    except Exception:
+        conn = None
+
+    # Generate digest
+    with console.status("[bold green]Generating AI digest..."):
+        content = generate_digest(posts, lookback_days=settings.lookback_days)
+
+    if content is None:
+        console.print(
+            "[red]Could not generate digest.[/red] "
+            "Make sure ANTHROPIC_API_KEY is set and the "
+            "anthropic package is installed.\n"
+        )
+        return
+
+    # Save to DB
+    if conn is not None:
+        try:
+            save_digest(conn, content, lookback_days=settings.lookback_days)
+            conn.close()
+        except Exception:
+            pass
+
+    console.print()
+    console.print(Markdown(content))
+    console.print()
 
 
 def main() -> None:

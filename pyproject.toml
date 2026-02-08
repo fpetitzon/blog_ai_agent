@@ -20,6 +20,9 @@ dependencies = [
 blog-agent = "blog_agent.main:cli"
 
 [project.optional-dependencies]
+ai = [
+    "anthropic>=0.39",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
