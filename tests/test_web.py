@@ -1,6 +1,6 @@
 """Tests for the web UI."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from blog_agent.config import Settings
 from blog_agent.models import BlogPost
@@ -24,6 +24,13 @@ def _make_test_posts():
             is_read=True,
         ),
     ]
+
+
+# Patch storage globally so DB calls don't hit disk in tests
+_STORAGE_PATCHES = {
+    "blog_agent.web.open_db": MagicMock,
+    "blog_agent.web.upsert_posts": MagicMock(return_value=0),
+}
 
 
 class TestWebApp:
@@ -54,9 +61,13 @@ class TestWebApp:
         settings = Settings(check_firefox_history=False)
         app = create_app(settings)
 
-        with patch(
-            "blog_agent.web.fetch_all_feeds",
-            return_value=_make_test_posts(),
+        with (
+            patch(
+                "blog_agent.web.fetch_all_feeds",
+                return_value=_make_test_posts(),
+            ),
+            patch("blog_agent.web.open_db"),
+            patch("blog_agent.web.upsert_posts", return_value=0),
         ):
             with app.test_client() as client:
                 resp = client.post("/api/refresh")
@@ -69,9 +80,13 @@ class TestWebApp:
         settings = Settings(check_firefox_history=False)
         app = create_app(settings)
 
-        with patch(
-            "blog_agent.web.fetch_all_feeds",
-            return_value=_make_test_posts(),
+        with (
+            patch(
+                "blog_agent.web.fetch_all_feeds",
+                return_value=_make_test_posts(),
+            ),
+            patch("blog_agent.web.open_db"),
+            patch("blog_agent.web.upsert_posts", return_value=0),
         ):
             with app.test_client() as client:
                 resp = client.get("/api/posts")
@@ -83,9 +98,13 @@ class TestWebApp:
         settings = Settings(check_firefox_history=False)
         app = create_app(settings)
 
-        with patch(
-            "blog_agent.web.fetch_all_feeds",
-            return_value=_make_test_posts(),
+        with (
+            patch(
+                "blog_agent.web.fetch_all_feeds",
+                return_value=_make_test_posts(),
+            ),
+            patch("blog_agent.web.open_db"),
+            patch("blog_agent.web.upsert_posts", return_value=0),
         ):
             with app.test_client() as client:
                 resp = client.get("/api/posts?days=14")
@@ -109,9 +128,15 @@ class TestSuggestionsAPI:
         settings = Settings(check_firefox_history=False)
         app = create_app(settings)
 
-        with patch(
-            "blog_agent.web.load_preferences",
-            return_value=Preferences(),
+        with (
+            patch(
+                "blog_agent.web.load_preferences",
+                return_value=Preferences(),
+            ),
+            patch(
+                "blog_agent.web._get_or_generate_reasons",
+                return_value={},
+            ),
         ):
             with app.test_client() as client:
                 resp = client.get("/api/suggestions")
@@ -122,6 +147,27 @@ class TestSuggestionsAPI:
                 assert "discarded_count" in data
                 assert isinstance(data["suggestions"], list)
                 assert len(data["suggestions"]) > 0
+
+    def test_suggestions_include_reason_field(self):
+        settings = Settings(check_firefox_history=False)
+        app = create_app(settings)
+
+        with (
+            patch(
+                "blog_agent.web.load_preferences",
+                return_value=Preferences(),
+            ),
+            patch(
+                "blog_agent.web._get_or_generate_reasons",
+                return_value={},
+            ),
+        ):
+            with app.test_client() as client:
+                resp = client.get("/api/suggestions")
+                data = resp.get_json()
+                # Every suggestion should have a "reason" field
+                for s in data["suggestions"]:
+                    assert "reason" in s
 
     def test_api_like_requires_url(self):
         settings = Settings(check_firefox_history=False)
@@ -192,9 +238,13 @@ class TestSuggestionsAPI:
         settings = Settings(check_firefox_history=False)
         app = create_app(settings)
 
-        with patch(
-            "blog_agent.web.fetch_all_feeds",
-            return_value=_make_test_posts(),
+        with (
+            patch(
+                "blog_agent.web.fetch_all_feeds",
+                return_value=_make_test_posts(),
+            ),
+            patch("blog_agent.web.open_db"),
+            patch("blog_agent.web.upsert_posts", return_value=0),
         ):
             with app.test_client() as client:
                 resp = client.post("/api/refresh")
@@ -217,3 +267,80 @@ class TestSuggestionsAPI:
                 content_type="application/json",
             )
             assert resp.status_code == 400
+
+
+class TestDigestAPI:
+    def test_api_digest_without_ai(self):
+        settings = Settings(check_firefox_history=False)
+        app = create_app(settings)
+        app.config["CACHED_POSTS"] = _make_test_posts()
+
+        with (
+            patch("blog_agent.web.open_db") as mock_open,
+            patch("blog_agent.web.get_latest_digest", return_value=None),
+            patch("blog_agent.web.generate_digest", return_value=None),
+        ):
+            mock_conn = MagicMock()
+            mock_open.return_value = mock_conn
+            with app.test_client() as client:
+                resp = client.get("/api/digest")
+                assert resp.status_code == 200
+                data = resp.get_json()
+                assert data["digest"] is None
+                assert "error" in data
+
+    def test_api_digest_with_cached(self):
+        settings = Settings(check_firefox_history=False)
+        app = create_app(settings)
+
+        from datetime import datetime, timezone
+
+        cached = {
+            "content": "Cached digest text",
+            "created_at": datetime.now(tz=timezone.utc).isoformat(),
+            "lookback_days": 3,
+        }
+
+        with (
+            patch("blog_agent.web.open_db") as mock_open,
+            patch("blog_agent.web.get_latest_digest", return_value=cached),
+        ):
+            mock_conn = MagicMock()
+            mock_open.return_value = mock_conn
+            with app.test_client() as client:
+                resp = client.get("/api/digest")
+                assert resp.status_code == 200
+                data = resp.get_json()
+                assert data["digest"] == "Cached digest text"
+                assert data["cached"] is True
+
+    def test_api_digest_generates_new(self):
+        settings = Settings(check_firefox_history=False)
+        app = create_app(settings)
+        app.config["CACHED_POSTS"] = _make_test_posts()
+
+        with (
+            patch("blog_agent.web.open_db") as mock_open,
+            patch("blog_agent.web.get_latest_digest", return_value=None),
+            patch(
+                "blog_agent.web.generate_digest",
+                return_value="Fresh digest",
+            ),
+            patch("blog_agent.web.save_digest"),
+        ):
+            mock_conn = MagicMock()
+            mock_open.return_value = mock_conn
+            with app.test_client() as client:
+                resp = client.get("/api/digest")
+                assert resp.status_code == 200
+                data = resp.get_json()
+                assert data["digest"] == "Fresh digest"
+                assert data["cached"] is False
+
+    def test_digest_tab_in_html(self):
+        app = create_app(Settings(check_firefox_history=False))
+        with app.test_client() as client:
+            resp = client.get("/")
+            assert b"Digest" in resp.data
+            assert b"digestTab" in resp.data
+            assert b"generateDigestBtn" in resp.data

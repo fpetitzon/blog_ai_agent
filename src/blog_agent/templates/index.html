@@ -254,6 +254,13 @@
     .suggestion-name { font-weight: 600; font-size: 1rem; }
     .suggestion-url { font-size: 0.8rem; color: var(--text-dim); }
 
+    .suggestion-reason {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--orange);
+      font-style: italic;
+    }
+
     .suggestion-tags {
       display: flex;
       gap: 0.35rem;
@@ -329,6 +336,31 @@
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
+    /* Digest styles */
+    .digest-content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem 2rem;
+      line-height: 1.7;
+      font-size: 0.95rem;
+    }
+
+    .digest-content p { margin-bottom: 1rem; }
+    .digest-content p:last-child { margin-bottom: 0; }
+
+    .digest-actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .digest-note {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: 1rem;
+    }
+
     @media (max-width: 768px) {
       .layout { flex-direction: column; }
       .sidebar {
@@ -350,6 +382,7 @@
       <div class="tab-bar">
         <button class="tab-btn active" data-tab="posts">Posts</button>
         <button class="tab-btn" data-tab="suggestions">Discover</button>
+        <button class="tab-btn" data-tab="digest">Digest</button>
       </div>
       <button class="btn" id="refreshBtn" title="Refresh feeds">Refresh</button>
       <div class="stats" id="stats"></div>
@@ -415,9 +448,22 @@
         </div>
         <div id="suggestionsList"></div>
         <div class="liked-section" id="likedSection" style="display:none">
-          <h3>Blogs you liked</h3>
+          <h3>Blogs you liked (auto-monitored in Posts)</h3>
           <div id="likedList"></div>
         </div>
+      </div>
+
+      <!-- Digest tab -->
+      <div class="tab-content" id="digestTab">
+        <div class="digest-actions">
+          <button class="btn" id="generateDigestBtn">Generate Digest</button>
+          <button class="btn" id="forceDigestBtn">Regenerate</button>
+        </div>
+        <div class="loading" id="digestLoading" style="display:none">
+          <div class="spinner"></div>
+          <p>Generating AI digest...</p>
+        </div>
+        <div id="digestContent"></div>
       </div>
     </main>
   </div>
@@ -448,6 +494,7 @@
         document.getElementById(btn.dataset.tab + 'Tab').classList.add('active');
         postsSidebar.style.display = btn.dataset.tab === 'posts' ? '' : 'none';
         if (btn.dataset.tab === 'suggestions') loadSuggestions();
+        if (btn.dataset.tab === 'digest') loadDigest();
       });
     });
 
@@ -644,6 +691,7 @@
                 <div>
                   <div class="suggestion-name">${esc(s.name)}</div>
                   <div class="suggestion-url">${esc(s.url)}</div>
+                  ${s.reason ? `<div class="suggestion-reason">${esc(s.reason)}</div>` : ''}
                   <div class="suggestion-tags">
                     ${(s.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
                   </div>
@@ -707,6 +755,54 @@
         loadSuggestions();
       }, 600);
     }
+
+    // --- Digest ---
+    async function loadDigest(force) {
+      const content = document.getElementById('digestContent');
+      const digestLoading = document.getElementById('digestLoading');
+      const url = force ? '/api/digest?force=1' : '/api/digest';
+
+      digestLoading.style.display = '';
+      content.innerHTML = '';
+
+      try {
+        const resp = await fetch(url);
+        const data = await resp.json();
+        digestLoading.style.display = 'none';
+
+        if (data.digest) {
+          content.innerHTML = `
+            <div class="digest-content">${formatDigest(data.digest)}</div>
+            <div class="digest-note">${data.cached ? 'Cached digest' : 'Freshly generated'}</div>
+          `;
+        } else if (data.error) {
+          content.innerHTML = `
+            <div class="empty-state">
+              <h3>AI Digest Unavailable</h3>
+              <p>Set <code>ANTHROPIC_API_KEY</code> and install the <code>anthropic</code> package to enable AI digests.</p>
+            </div>
+          `;
+        } else {
+          content.innerHTML = '<div class="empty-state"><h3>No digest available</h3><p>Click "Generate Digest" to create one.</p></div>';
+        }
+      } catch (err) {
+        digestLoading.style.display = 'none';
+        content.innerHTML = '<div class="empty-state"><p>Error loading digest.</p></div>';
+      }
+    }
+
+    function formatDigest(text) {
+      // Simple markdown-like rendering: paragraphs and bold
+      return text
+        .split('\n\n')
+        .map(p => p.trim())
+        .filter(p => p)
+        .map(p => `<p>${esc(p)}</p>`)
+        .join('');
+    }
+
+    document.getElementById('generateDigestBtn').addEventListener('click', () => loadDigest(false));
+    document.getElementById('forceDigestBtn').addEventListener('click', () => loadDigest(true));
 
     // Boot
     fetchPosts();

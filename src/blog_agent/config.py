@@ -9,7 +9,7 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
-from blog_agent.models import DEFAULT_FEEDS, FeedSource
+from blog_agent.models import DEFAULT_FEEDS, FeedSource, normalize_url
 
 
 def _default_firefox_profile_dir() -> str:
@@ -49,11 +49,31 @@ class Settings(BaseSettings):
     model_config = {"env_prefix": "BLOG_AGENT_"}
 
     def get_feeds(self) -> list[FeedSource]:
-        """Load feed sources from file or return defaults."""
+        """Load feed sources from file or return defaults.
+
+        Liked blogs from preferences are merged in automatically,
+        closing the discovery loop: like a blog on the Discover tab
+        and it starts showing up in your Posts feed.
+        """
         if self.feeds_file:
             path = Path(self.feeds_file)
             if path.exists():
                 with open(path) as f:
                     data = json.load(f)
-                return [FeedSource(**item) for item in data]
-        return list(DEFAULT_FEEDS)
+                base = [FeedSource(**item) for item in data]
+            else:
+                base = list(DEFAULT_FEEDS)
+        else:
+            base = list(DEFAULT_FEEDS)
+
+        # Merge liked blogs from preferences
+        from blog_agent.preferences import load_preferences
+
+        prefs = load_preferences()
+        existing = {normalize_url(f.url) for f in base}
+        for liked in prefs.liked:
+            if normalize_url(liked.url) not in existing:
+                base.append(liked)
+                existing.add(normalize_url(liked.url))
+
+        return base
