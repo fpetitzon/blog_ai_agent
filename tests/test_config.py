@@ -60,9 +60,7 @@ class TestDiscoveryLoop:
         )
         prefs = Preferences(liked=[liked_blog])
 
-        with patch(
-            "blog_agent.preferences.load_preferences", return_value=prefs
-        ):
+        with patch("blog_agent.preferences.load_preferences", return_value=prefs):
             settings = Settings()
             feeds = settings.get_feeds()
 
@@ -80,9 +78,7 @@ class TestDiscoveryLoop:
         )
         prefs = Preferences(liked=[liked_blog])
 
-        with patch(
-            "blog_agent.preferences.load_preferences", return_value=prefs
-        ):
+        with patch("blog_agent.preferences.load_preferences", return_value=prefs):
             settings = Settings()
             feeds = settings.get_feeds()
 

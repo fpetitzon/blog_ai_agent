@@ -8,8 +8,14 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 from blog_agent.models import BlogPost, FeedSource
+
+# Load .env file from project root if it exists
+load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 logger = logging.getLogger(__name__)
 
